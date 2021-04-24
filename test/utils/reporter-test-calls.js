@@ -30,6 +30,12 @@ module.exports = [
         ]
     },
     {
+        method: 'reportTestStart',
+        args:   [
+            'First test in first fixture'
+        ]
+    },
+    {
         method: 'reportTestDone',
         args:   [
             'First test in first fixture',
