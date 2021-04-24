@@ -4,7 +4,13 @@
 This is the **ng-xunit** reporter plugin for [TestCafe](http://devexpress.github.io/testcafe).
 
 <p align="center">
-    <img src="https://raw.github.com/SkyWalker1005/testcafe-reporter-ng-xunit/master/media/preview.png" alt="preview" />
+    <img src="https://raw.github.com/SkyWalker1005/testcafe-reporter-ng-xunit/master/media/TestCafeXmlBeautified.png" alt="preview" />
+</p>
+<p align="center">
+    <img src="https://raw.github.com/SkyWalker1005/testcafe-reporter-ng-xunit/master/media/TestCafeXmlFirst.png" alt="preview" />
+</p>
+<p align="center">
+    <img src="https://raw.github.com/SkyWalker1005/testcafe-reporter-ng-xunit/master/media/TestCafeXmlSecond.png" alt="preview" />
 </p>
 
 ## Install
