@@ -15,7 +15,7 @@ module.exports = function () {
 
             const time = this.moment(startTime).format('MMM/DD/YYYY hh:mm:ss a');
 
-            console.log('-------------------------------------------------', '\n\n', '## Testing started: ', time, '##', '\n', 'Running ', testCount, ' tests in: ', userAgents, '\n\n', '--------------------------------------------------', '\n');
+            console.log('--------------------------------------------------------------------------', '\n\n', '## Testing started: ', time, '##', '\n', 'Running ', testCount, ' tests in: ', userAgents, '\n\n', '---------------------------------------------------------------------------', '\n');
         },
 
         reportFixtureStart (name) {
