@@ -1,6 +1,6 @@
 {
   "name": "testcafe-reporter-ng-xunit",
-  "version": "1.0.3",
+  "version": "1.0.4-beta.0",
   "description": "ng-xunit TestCafe reporter plugin.",
   "repository": "https://github.com/SkyWalker1005/testcafe-reporter-ng-xunit",
   "author": {
@@ -42,6 +42,7 @@
   "dependencies": {
     "@babel/runtime": "^7.3.4",
     "luxon": "^1.26.0",
-    "moment-timezone": "^0.5.33"
+    "moment-timezone": "^0.5.33",
+    "node-fetch": "^2.6.1"
   }
 }

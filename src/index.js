@@ -1,3 +1,10 @@
+'use strict';
+/* global Map */
+var xraySupport1 = require('../src/XRAYSupport');
+var xray = new xraySupport1.XRAYSupport();
+var minimist = require('minimist');
+var args = minimist(process.argv.slice(2));
+
 module.exports = function () {
     return {
         noColors:           true,
@@ -7,6 +14,10 @@ module.exports = function () {
         currentFixtureName: null,
         testCount:          0,
         skipped:            0,
+        testProject:        null,
+        testPlan:           null,
+        testKeys:           [],
+        environment:        null,
 
         reportTaskStart (startTime, userAgents, testCount) {
             this.startTime = startTime;
@@ -16,6 +27,9 @@ module.exports = function () {
             const time = this.moment(startTime).format('MMM/DD/YYYY hh:mm:ss a');
 
             console.log('---------------------------------------------------------------------------', '\n\n', '## Testing started: ', time, '##', '\n', 'Running ', testCount, ' tests in: ', userAgents, '\n\n', '----------------------------------------------------------------------------', '\n');
+            this.testProject = args.TestProjectName;
+            this.testPlan = args.TestPlanName;
+            this.environment = args.env;
         },
 
         reportFixtureStart (name) {
@@ -44,7 +58,11 @@ module.exports = function () {
             this.report += this.indentString('</failure>\n', 4);
         },
 
-        reportTestDone (name, testRunInfo) {
+        reportTestDone (name, testRunInfo, meta) {
+            var currentTestMeta = meta;
+            var metaKey = currentTestMeta.key;
+
+            this.testKeys.push(metaKey);
             var hasErr = !!testRunInfo.errs.length;
             var result = hasErr ? 'failed' : 'passed';
 
@@ -121,6 +139,85 @@ module.exports = function () {
 
             this.setIndent(0)
                 .write('</testsuite>');
+
+            //Adding Xray logic here
+            console.log('\nJIRA Project: ', this.testProject, '\nJIRA Plan: ', this.testPlan);
+            var TestCaseList = new Map();
+            var TestRunList = new Map();
+            var list = this.testKeys;
+            var listOfNGTMIssueIds = [];
+            var listOfTestRunIds = [];
+
+            //Call to Get All Plan List---------------------->>>>>>>>>>>>>>>>>
+            xray.getTestPlansKeyAPI(this.testProject)
+                .then(function (dataPlanKeys) {
+                    //console.log(data.data.createTestExecution.testExecution.issueId)
+                    var PlanIssueKey;
+
+                    dataPlanKeys.data.getTestPlans.results.forEach(function (results) {
+                        if (results.jira.key == this.testPlan)
+                            PlanIssueKey = results.issueId;
+
+                    });
+                    console.log('IssueID for ' + this.testProject + ' is :: ' + PlanIssueKey);
+                    //Call to get TestCase List by Key
+                    xray.getTestCasesKeysAPI(PlanIssueKey)
+                        .then(function (dataTestCasesKeys) {
+                            console.log('Trying to get TestCases for Plan issue Key:: >', PlanIssueKey);
+                            dataTestCasesKeys.data.getTestPlan.tests.results.forEach(function (results) {
+                                for (var y = 0; y < list.length; y++) {
+                                    //console.log('List of Y::'+list[y]+ '  Key from Xray::' + results.jira.key)
+                                    if (results.jira.key == list[y]) {
+                                        //console.log('List of Y::'+list[y]+'results from xray:: '+results.issueId)
+                                        TestCaseList.set(list[y], results.issueId);
+                                        listOfNGTMIssueIds[y] = results.issueId;
+                                    }
+                                }
+                            });
+                            console.log('List have ::>>' + TestCaseList);
+                            console.log('List have ::>>' + listOfNGTMIssueIds);
+                            //var res = listOfNGTMIssueIds.toString().split(',');
+                            var op = listOfNGTMIssueIds.join('","');
+                            var TestCaseIssueIDList = '"' + op + '"';
+
+                            console.log(TestCaseIssueIDList);
+                            xray.createTestExecutionAPI(TestCaseIssueIDList, this.testProject)
+                                .then(function (dataTestExecution) {
+                                    console.log('Test Execution ID is: ' + dataTestExecution.data.createTestExecution.testExecution.issueId);
+                                    var TestExecutionID = dataTestExecution.data.createTestExecution.testExecution.issueId;
+                                    var TestExecutionKEY = dataTestExecution.data.createTestExecution.testExecution.jira.key;
+
+                                    console.log('Test Execution key is :' + TestExecutionKEY);
+                                    xray.getTestRunsAPI(TestExecutionID)
+                                        .then(function (dataTestRuns) {
+                                            dataTestRuns.data.getTestRuns.results.forEach(function (results) {
+                                                for (var q = 0; q < list.length; q++) {
+                                                    if (results.test.jira.key == list[q]) {
+                                                        //console.log("TestRUnID for NGTM-2340 is :: "+results.id)
+                                                        TestRunList.set(list[q], results.id);
+                                                        listOfTestRunIds[q] = results.id;
+                                                    }
+                                                }
+                                            });
+                                            //console.log(TestRunList)
+                                            //console.log(TestRunList.get('NGTM-2340'))
+                                            for (var s = 0; s < TestRunList.size; s++) {
+                                                console.log('Updating for ::>>>' + listOfTestRunIds[s]);
+                                                xray.updateTestRunsAPI(listOfTestRunIds[s], 'PASSED')
+                                                    .then(function (dataUpdateTestRuns) {
+                                                        console.log('Updated Test Runs', dataUpdateTestRuns);
+                                                    }); // Ending of updateTestRunsAPI
+                                            }
+                                            console.log('Adding this plankey::>' + PlanIssueKey + ' with this exec :: ' + TestExecutionID);
+                                            xray.addTestExecutionAPI(PlanIssueKey, TestExecutionID)
+                                                .then(function (dataAddTestExecution) {
+                                                    console.log(dataAddTestExecution.data.addTestExecutionsToTestPlan);
+                                                }); // Ending of addTestExecutionAPI
+                                        }); // Ending of getTestRunsAPI
+                                }); // Ending of getTestCasesKeysAPI
+                        }); // Ending of getTestCasesKeysAPI
+                }); // Ending of getTestPlansKeyAPI
+
         }
     };
 };
