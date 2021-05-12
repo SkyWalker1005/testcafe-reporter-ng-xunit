@@ -1,6 +1,6 @@
 {
   "name": "testcafe-reporter-ng-xunit",
-  "version": "1.0.3",
+  "version": "1.0.6",
   "description": "ng-xunit TestCafe reporter plugin.",
   "repository": "https://github.com/SkyWalker1005/testcafe-reporter-ng-xunit",
   "author": {
