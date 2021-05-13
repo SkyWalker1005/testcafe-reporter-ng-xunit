@@ -1,19 +1,5 @@
 /* eslint-disable */
-var XRAYSupport_1 = require("../src/XRAYSupport");
-var express = require('express');
-var app = express();
-app.use(express.json());
-var xray = new XRAYSupport_1.XRAYSupport();
-var minimist = require('minimist');
-var args = minimist(process.argv.slice(2));
-var environment = args.env;
-var ProjectName = args.TestProjectName; //"NGRES"
-var PlanName = args.TestPlanName; //"NGRES-7527"
-var TestCaseList = new Map();
-var TestRunList = new Map();
-var list = []; //Issues list read from meta
-var listOfNGTMIssueIds = new Array();
-var listOfTestRunIds = new Array();
+const fs = require('fs');
 
 module.exports = function () {
     return {
@@ -24,6 +10,7 @@ module.exports = function () {
         currentFixtureName: null,
         testCount:          0,
         skipped:            0,
+        testMetaWithExec:   new Map(),
 
         reportTaskStart (startTime, userAgents, testCount) {
             this.startTime = startTime;
@@ -63,7 +50,6 @@ module.exports = function () {
 
         reportTestDone (name, testRunInfo, meta) {
             var metaData = meta;
-            list.push(metaData.key);
             var hasErr = !!testRunInfo.errs.length;
             var result = hasErr ? 'failed' : 'passed';
 
@@ -75,7 +61,10 @@ module.exports = function () {
 
             name = this.escapeHtml(name);
 
-            console.log('- Execution done for test: ', name, '| ', 'Status: ', result);
+            console.log('- Execution done for test[', metaData.key, ']: ', name, '| ', 'Status: ', result);
+
+            //Adding test meta with exexution result in Map object
+            this.testMetaWithExec.set(metaData.key, result);
 
             var openTag = `<testcase classname="${this.currentFixtureName}" ` +
                           `name="${name}" time="${testRunInfo.durationMs}" ` +
@@ -141,75 +130,26 @@ module.exports = function () {
             this.setIndent(0)
                 .write('</testsuite>');
 
+            //Save meta in a file
+            var testMetaWithExecJSON = this.map_to_object(this.testMetaWithExec);
+            console.log('\nCreated execution JSON: ', JSON.stringify(testMetaWithExecJSON), '\n\nSaved to testMetaData.json file!!!\n')
 
-            //Xray Code----------------------->
-
-            //Call to Get All Plan List---------------------->>>>>>>>>>>>>>>>>
-            xray.getTestPlansKeyAPI(ProjectName)
-            .then(function (data) {
-            //console.log(data.data.createTestExecution.testExecution.issueId)
-            var PlanIssueKey;
-            data.data.getTestPlans.results.forEach(function (results) {
-                if (results.jira.key == PlanName) {
-                    PlanIssueKey = results.issueId;
-                }
-            });
-            console.log("IssueID for " + ProjectName + " is :: " + PlanIssueKey);
-            //Call to get TestCase List by Key
-            xray.getTestCasesKeysAPI(PlanIssueKey)
-                .then(function (data) {
-                console.log('Trying to get TestCases for Plan issue Key:: >', PlanIssueKey);
-                data.data.getTestPlan.tests.results.forEach(function (results) {
-                    for (var y = 0; y < list.length; y++) {
-                        //console.log('List of Y::'+list[y]+ '  Key from Xray::' + results.jira.key)
-                        if (results.jira.key == list[y]) {
-                            //console.log('List of Y::'+list[y]+'results from xray:: '+results.issueId)
-                            TestCaseList.set(list[y], results.issueId);
-                            listOfNGTMIssueIds[y] = results.issueId;
-                        }
-                    }
-                });
-                console.log('List have ::>>' + TestCaseList);
-                console.log('List have ::>>' + listOfNGTMIssueIds);
-                var res = listOfNGTMIssueIds.toString().split(",");
-                var op = listOfNGTMIssueIds.join("\",\"");
-                var TestCaseIssueIDList = "\"" + op + "\"";
-                console.log(TestCaseIssueIDList);
-                xray.createTestExecutionAPI(TestCaseIssueIDList, ProjectName)
-                    .then(function (data) {
-                    console.log("Test Execution ID is: " + data.data.createTestExecution.testExecution.issueId);
-                    var TestExecutionID = data.data.createTestExecution.testExecution.issueId;
-                    var TestExecutionKEY = data.data.createTestExecution.testExecution.jira.key;
-                    console.log('Test Execution key is :' + TestExecutionKEY);
-                    xray.getTestRunsAPI(TestExecutionID)
-                        .then(function (data) {
-                        data.data.getTestRuns.results.forEach(function (results) {
-                            for (var q = 0; q < list.length; q++) {
-                                if (results.test.jira.key == list[q]) {
-                                    //console.log("TestRUnID for NGTM-2340 is :: "+results.id)
-                                    TestRunList.set(list[q], results.id);
-                                    listOfTestRunIds[q] = results.id;
-                                }
-                            }
-                        });
-                        //console.log(TestRunList)
-                        //console.log(TestRunList.get('NGTM-2340'))
-                        for (var s = 0; s < TestRunList.size; s++) {
-                            console.log('Updating for ::>>>' + listOfTestRunIds[s]);
-                            xray.updateTestRunsAPI(listOfTestRunIds[s], "PASSED")
-                                .then(function (data) {
-                            }); // Ending of updateTestRunsAPI
-                        }
-                        console.log('Adding this plankey::>' + PlanIssueKey + " with this exec :: " + TestExecutionID);
-                        xray.addTestExecutionAPI(PlanIssueKey, TestExecutionID)
-                            .then(function (data) {
-                            console.log(data.data.addTestExecutionsToTestPlan);
-                        }); // Ending of addTestExecutionAPI
-                    }); // Ending of getTestRunsAPI
-                }); // Ending of getTestCasesKeysAPI
-            }); // Ending of getTestCasesKeysAPI
-            }); // Ending of getTestPlansKeyAPI
-
-        }
+            fs.writeFileSync('testMetaData.json', JSON.stringify(testMetaWithExecJSON), function (err) {
+                if (err) throw err;
+                console.log('Saved!');
+              })
+        },
+        map_to_object(map) {
+            const out = Object.create(null)
+            map.forEach((value, key) => {
+              if (value instanceof Map) {
+                out[key] = map_to_object(value)
+              }
+              else {
+                out[key] = value
+              }
+            })
+            return out
+          }
     };
 };
