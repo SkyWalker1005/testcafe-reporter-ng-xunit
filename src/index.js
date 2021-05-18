@@ -63,7 +63,11 @@ module.exports = function () {
 
             console.log('- Execution done for test[', metaData.key, ']: ', name, '| ', 'Status: ', result);
 
-            //Adding test meta with exexution result in Map object
+            //Adding test meta with execution result in Map object
+            if(metaData.key == undefined || metaData.key == null){
+                console.log('Test not having meta: ', name)
+            }
+            else
             this.testMetaWithExec.set(metaData.key, result);
 
             var openTag = `<testcase classname="${this.currentFixtureName}" ` +
