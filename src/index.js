@@ -1,3 +1,6 @@
+/* eslint-disable */
+const fs = require('fs');
+
 module.exports = function () {
     return {
         noColors:           true,
@@ -7,6 +10,7 @@ module.exports = function () {
         currentFixtureName: null,
         testCount:          0,
         skipped:            0,
+        testMetaWithExec:   new Map(),
 
         reportTaskStart (startTime, userAgents, testCount) {
             this.startTime = startTime;
@@ -15,7 +19,7 @@ module.exports = function () {
 
             const time = this.moment(startTime).format('MMM/DD/YYYY hh:mm:ss a');
 
-            console.log('-------------------------------------------------', '\n\n', '## Testing started: ', time, '##', '\n', 'Running ', testCount, ' tests in: ', userAgents, '\n\n', '--------------------------------------------------', '\n');
+            console.log('---------------------------------------------------------------------------', '\n\n', '## Testing started: ', time, '##', '\n', 'Running ', testCount, ' tests in: ', userAgents, '\n\n', '----------------------------------------------------------------------------', '\n');
         },
 
         reportFixtureStart (name) {
@@ -44,7 +48,8 @@ module.exports = function () {
             this.report += this.indentString('</failure>\n', 4);
         },
 
-        reportTestDone (name, testRunInfo) {
+        reportTestDone (name, testRunInfo, meta) {
+            var metaData = meta;
             var hasErr = !!testRunInfo.errs.length;
             var result = hasErr ? 'failed' : 'passed';
 
@@ -56,7 +61,14 @@ module.exports = function () {
 
             name = this.escapeHtml(name);
 
-            console.log('- Execution done for test: ', name, '| ', 'Status: ', result);
+            console.log('- Execution done for test[', metaData.key, ']: ', name, '| ', 'Status: ', result);
+
+            //Adding test meta with execution result in Map object
+            if(metaData.key == undefined || metaData.key == null){
+                console.log('Test not having meta: ', name)
+            }
+            else
+            this.testMetaWithExec.set(metaData.key, result);
 
             var openTag = `<testcase classname="${this.currentFixtureName}" ` +
                           `name="${name}" time="${testRunInfo.durationMs}" ` +
@@ -121,6 +133,27 @@ module.exports = function () {
 
             this.setIndent(0)
                 .write('</testsuite>');
-        }
+
+            //Save meta in a file
+            var testMetaWithExecJSON = this.map_to_object(this.testMetaWithExec);
+            console.log('\nCreated execution JSON: ', JSON.stringify(testMetaWithExecJSON), '\n\nSaved to testMetaData.json file!!!\n')
+
+            fs.writeFileSync('testMetaData.json', JSON.stringify(testMetaWithExecJSON), function (err) {
+                if (err) throw err;
+                console.log('Saved!');
+              })
+        },
+        map_to_object(map) {
+            const out = Object.create(null)
+            map.forEach((value, key) => {
+              if (value instanceof Map) {
+                out[key] = map_to_object(value)
+              }
+              else {
+                out[key] = value
+              }
+            })
+            return out
+          }
     };
 };
